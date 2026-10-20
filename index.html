@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>City Universe · 极端天气 × 城市物流</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: radial-gradient(1200px 600px at 20% -10%, #101a33 0%, #0a0e1a 55%, #070a12 100%);
+  color: #e5e7eb;
+  font-family: 'JetBrains Mono', 'Noto Sans SC', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.root { min-height: 100vh; padding-bottom: 40px; }
+[hidden] { display: none !important; }
+
+/* 顶部栏 */
+.topbar {
+  display: flex; align-items: center; gap: 20px;
+  padding: 16px 28px; border-bottom: 1px solid #1f2937;
+  background: rgba(10, 14, 26, 0.7); backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo-dot { width: 10px; height: 10px; border-radius: 50%; background: #22d3ee; box-shadow: 0 0 12px #22d3ee; }
+.brand-title { font-weight: 800; letter-spacing: 2px; font-size: 1.1rem; }
+.brand-sub { color: #6b7280; font-size: 0.78rem; }
+.weather-banner {
+  margin-left: auto; display: flex; align-items: center; gap: 10px;
+  padding: 6px 16px; border-radius: 999px; border: 1px solid #334155; background: #111827;
+  transition: border-color .3s, box-shadow .3s;
+}
+.weather-banner.storm, .weather-banner.rain { border-color: #3b82f6; box-shadow: 0 0 16px rgba(59,130,246,0.25); }
+.weather-banner.snow { border-color: #7dd3fc; box-shadow: 0 0 16px rgba(125,211,252,0.25); }
+.weather-banner.sunny { border-color: #f59e0b; }
+.weather-icon { font-size: 1.2rem; }
+.weather-text { font-size: 0.85rem; font-weight: 600; }
+.weather-speed { font-size: 0.72rem; color: #60a5fa; }
+
+/* 步骤条 */
+.stepper {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 14px 28px; border-bottom: 1px solid #1f2937; background: rgba(10,14,26,0.5);
+}
+.step {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px;
+  border-radius: 999px; font-size: 0.8rem; color: #6b7280; border: 1px solid transparent;
+  cursor: default; font-family: inherit; background: transparent;
+}
+.step .num {
+  width: 20px; height: 20px; border-radius: 50%; background: #1f2937; color: #9ca3af;
+  display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0;
+}
+.step.active { color: #e5e7eb; border-color: #22d3ee; }
+.step.active .num { background: #22d3ee; color: #06202b; }
+.step.done { color: #9ca3af; cursor: pointer; }
+.step.done .num { background: #164e63; color: #67e8f9; }
+.step.done:hover { color: #22d3ee; border-color: #164e63; }
+.step-sep { color: #1f2937; font-size: 0.8rem; }
+
+/* 面板通用 */
+.panel { border: 1px solid #1f2937; border-radius: 14px; background: rgba(17,24,39,0.55); overflow: hidden; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #1f2937; }
+.panel-title { font-weight: 700; font-size: 0.9rem; letter-spacing: 0.5px; }
+.tick-label { color: #6b7280; font-size: 0.72rem; }
+.step-hint { text-align: center; color: #6b7280; font-size: 0.82rem; padding: 4px 0 0; }
+
+/* 按钮 */
+.btn-primary {
+  background: #22d3ee; color: #06202b; border: none; padding: 14px 34px;
+  border-radius: 10px; font-weight: 800; font-size: 1rem; cursor: pointer;
+  font-family: inherit; transition: all .2s;
+}
+.btn-primary:hover { box-shadow: 0 0 24px rgba(34,211,238,0.5); transform: translateY(-1px); }
+.btn-primary.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.5); } 50% { box-shadow: 0 0 0 12px rgba(34,211,238,0); } }
+.btn-violet {
+  background: #a78bfa; color: #1c1917; border: none; padding: 12px 26px;
+  border-radius: 9px; font-weight: 800; cursor: pointer; font-family: inherit; font-size: 0.95rem; transition: all .2s;
+}
+.btn-violet:hover { box-shadow: 0 0 18px rgba(167,139,250,0.5); transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent; color: #cbd5e1; border: 1px solid #334155;
+  padding: 10px 22px; border-radius: 9px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 0.9rem;
+}
+.btn-ghost:hover { border-color: #22d3ee; color: #22d3ee; }
+.step-actions { display: flex; justify-content: center; gap: 14px; padding: 26px 28px; flex-wrap: wrap; }
+
+/* 开场页 */
+.landing { display: flex; justify-content: center; padding: 70px 20px; }
+.landing-card {
+  max-width: 680px; width: 100%; text-align: center;
+  border: 1px solid #1f2937; border-radius: 16px; padding: 48px 40px; background: rgba(17,24,39,0.6);
+}
+.landing-kicker { color: #22d3ee; letter-spacing: 4px; font-size: 0.75rem; margin-bottom: 18px; }
+.landing-title { font-size: 2.3rem; line-height: 1.25; margin: 0 0 18px; font-weight: 700; }
+.landing-desc { color: #9ca3af; line-height: 1.8; margin-bottom: 24px; font-size: 0.92rem; }
+.landing-points { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 28px; }
+.landing-points span { padding: 6px 12px; border: 1px solid #334155; border-radius: 999px; font-size: 0.8rem; color: #cbd5e1; }
+.weather-pick { margin-bottom: 28px; }
+.weather-pick .pick-label { font-size: 0.72rem; color: #6b7280; margin-bottom: 12px; }
+.preset-tab {
+  background: #0d1220; color: #9ca3af; border: 1px solid #1f2937;
+  padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: 0.82rem;
+  font-family: inherit; transition: all .18s; margin: 3px;
+}
+.preset-tab:hover { border-color: #334155; color: #e5e7eb; }
+.preset-tab.active { border-color: #22d3ee; color: #22d3ee; box-shadow: 0 0 14px rgba(34,211,238,0.25); }
+
+/* 生成动画 */
+.generating { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 90px 20px; }
+.gen-spinner { width: 42px; height: 42px; border: 3px solid rgba(34,211,238,0.2); border-top-color: #22d3ee; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.gen-text { color: #cbd5e1; font-size: 0.98rem; font-weight: 600; }
+.gen-sub { color: #6b7280; font-size: 0.78rem; }
+
+/* 城市设定卡 */
+.city-card { border: 1px solid #1f2937; border-radius: 12px; padding: 18px 24px; background: rgba(13,18,32,0.7); margin: 20px 28px 0; }
+.city-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.city-name { font-size: 1.4rem; font-weight: 800; color: #22d3ee; }
+.city-today { color: #cbd5e1; font-size: 0.88rem; }
+.city-atmo { color: #9ca3af; margin-top: 10px; font-size: 0.84rem; line-height: 1.7; }
+
+/* 灵魂卡（Step1） */
+.soul-wrap { padding: 20px 28px; }
+.soul-title { font-weight: 800; font-size: 1.05rem; margin: 8px 0 16px; }
+.soul-title small { color: #6b7280; font-weight: 400; font-size: 0.78rem; margin-left: 8px; }
+.soul-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.soul-card { border: 1px solid #1f2937; border-radius: 12px; padding: 16px; background: #0d1220; }
+.soul-top { display: flex; align-items: center; gap: 12px; }
+.soul-avatar { width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 12px currentColor; }
+.soul-id { flex: 1; min-width: 0; }
+.soul-name { font-weight: 800; font-size: 1rem; }
+.soul-age { color: #6b7280; font-weight: 400; font-size: 0.72rem; }
+.soul-role { color: #22d3ee; font-size: 0.72rem; margin-top: 2px; }
+.soul-personality { margin: 12px 0 6px; font-size: 0.8rem; color: #e5e7eb; line-height: 1.6; }
+.soul-motto { font-size: 0.78rem; color: #fbbf24; margin-bottom: 4px; }
+.soul-motivation { font-size: 0.74rem; color: #9ca3af; margin-bottom: 12px; }
+.soul-bars { display: flex; flex-direction: column; gap: 6px; }
+.bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.68rem; color: #6b7280; }
+.bar-row span { width: 52px; flex-shrink: 0; }
+.bar { flex: 1; height: 6px; background: #1f2937; border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 3px; }
+
+/* 运行模拟（Step2）看板 */
+.board { display: grid; grid-template-columns: 1.15fr 1.3fr 0.85fr; gap: 16px; padding: 20px 28px; align-items: start; }
+@media (max-width: 1100px) { .board { grid-template-columns: 1fr; } }
+.map-wrap { position: relative; padding: 12px; }
+.map-svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+.map-wrap.storm .map-svg { filter: drop-shadow(0 0 10px rgba(59,130,246,0.35)); }
+.map-wrap.snow .map-svg { filter: drop-shadow(0 0 10px rgba(125,211,252,0.35)); }
+.rider-dot { transition: cx 0.12s linear, cy 0.12s linear; }
+.rider-glow { transition: cx 0.12s linear, cy 0.12s linear; }
+.rider-name-txt { transition: x 0.12s linear, y 0.12s linear; }
+.rain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
+  background-image: repeating-linear-gradient(105deg, transparent 0px, transparent 6px, rgba(147,197,253,0.5) 6px, rgba(147,197,253,0.5) 7px);
+  animation: rain-fall 0.5s linear infinite;
+}
+.snow-overlay {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.4;
+  background-image: radial-gradient(2px 2px at 8px 12px, #e0f2fe 50%, transparent 51%),
+    radial-gradient(2px 2px at 20px 40px, #e0f2fe 50%, transparent 51%),
+    radial-gradient(2px 2px at 34px 8px, #e0f2fe 50%, transparent 51%),
+    radial-gradient(2px 2px at 12px 60px, #e0f2fe 50%, transparent 51%);
+  background-size: 60px 60px; animation: snow-fall 1.2s linear infinite;
+}
+@keyframes rain-fall { from { background-position: 0 0; } to { background-position: -80px 80px; } }
+@keyframes snow-fall { from { background-position: 0 0; } to { background-position: 0 60px; } }
+.legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 0.7rem; color: #9ca3af; flex-wrap: wrap; }
+.legend span { display: flex; align-items: center; gap: 5px; }
+.dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.dot.merchant { background: #f59e0b; }
+.dot.customer { background: #9ca3af; border-radius: 50%; }
+.dot.rider { background: #22d3ee; border-radius: 50%; box-shadow: 0 0 6px #22d3ee; }
+.dot.blocked { background: #ef4444; }
+
+/* 图表 */
+.chart-panel { display: flex; flex-direction: column; }
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-legend { display: flex; gap: 12px; font-size: 0.7rem; color: #9ca3af; }
+.chart-legend span { display: flex; align-items: center; gap: 4px; }
+.swatch { width: 12px; height: 3px; display: inline-block; border-radius: 2px; }
+.swatch.delivery { background: #22d3ee; }
+.swatch.delay { background: #f472b6; }
+
+/* 骑手实时卡（Step2） */
+.live-cards { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.live-card { border: 1px solid #1f2937; border-radius: 10px; padding: 12px; background: #0d1220; transition: opacity .2s; }
+.live-card.off { opacity: 0.45; }
+.live-top { display: flex; align-items: center; gap: 10px; }
+.live-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+.live-id { flex: 1; min-width: 0; }
+.live-name { font-weight: 700; font-size: 0.9rem; }
+.live-role { color: #9ca3af; font-size: 0.68rem; }
+.live-duty { font-size: 0.66rem; padding: 3px 8px; border-radius: 999px; background: #064e3b; color: #34d399; }
+.live-card.off .live-duty { background: #3f3f46; color: #9ca3af; }
+.live-motto { margin: 8px 0 8px; font-size: 0.75rem; color: #e5e7eb; }
+
+/* 时间轴 */
+.timeline { display: flex; align-items: center; gap: 14px; padding: 14px 28px; }
+.play-btn {
+  width: 46px; height: 46px; border-radius: 50%; background: #22d3ee; color: #06202b;
+  border: none; font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+}
+.play-btn.ghost { background: transparent; border: 1px solid #334155; color: #e5e7eb; }
+.slider { flex: 1; -webkit-appearance: none; height: 6px; border-radius: 3px; background: #1f2937; outline: none; }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fbbf24; cursor: pointer; box-shadow: 0 0 10px rgba(251,191,36,0.6); }
+.slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fbbf24; cursor: pointer; border: none; }
+
+/* 直播流 */
+.feed-panel { margin: 0 28px; }
+.feed { max-height: 240px; overflow-y: auto; padding: 10px 16px; }
+.feed-empty { color: #6b7280; text-align: center; padding: 20px; font-size: 0.85rem; }
+.feed-item { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px solid #111827; font-size: 0.8rem; }
+.feed-tick { color: #6b7280; flex-shrink: 0; width: 24px; font-family: 'JetBrains Mono', monospace; }
+.feed-detail { color: #cbd5e1; line-height: 1.5; }
+.feed-item.weather_change .feed-detail { color: #fbbf24; font-weight: 600; }
+.feed-item.go_off_duty .feed-detail { color: #9ca3af; font-style: italic; }
+.feed-item.cancel_order .feed-detail { color: #f87171; }
+.feed-item.deliver .feed-detail { color: #34d399; }
+.feed-item.accept_order .feed-detail { color: #60a5fa; }
+.feed-item.pick_up .feed-detail { color: #a78bfa; }
+
+/* 结果洞察（Step3） */
+.stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 20px 28px 0; border: 1px solid #1f2937; border-radius: 14px; overflow: hidden; background: rgba(17,24,39,0.55); }
+.stat { padding: 16px 8px; text-align: center; border-right: 1px solid #1f2937; }
+.stat:last-child { border-right: none; }
+.stat-val { font-size: 1.6rem; font-weight: 800; color: #22d3ee; }
+.stat-val.accent { color: #f472b6; }
+.stat-label { font-size: 0.68rem; color: #6b7280; margin-top: 4px; }
+.data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 28px 0; align-items: start; }
+@media (max-width: 1100px) { .data-grid { grid-template-columns: 1fr; } }
+
+/* 晴雨分段 */
+.seg-bands { display: flex; padding: 12px 16px 4px; gap: 4px; }
+.seg-band { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 7px; font-size: 0.72rem; white-space: nowrap; border: 1px solid #334155; background: #0d1220; min-width: 0; overflow: hidden; }
+.seg-band.sunny { border-color: #b45309; color: #fbbf24; }
+.seg-band.storm, .seg-band.rain { border-color: #1d4ed8; color: #60a5fa; background: #0b1630; }
+.seg-band.snow { border-color: #7dd3fc; color: #bae6fd; }
+.seg-icon { font-size: 0.9rem; }
+.seg-name { overflow: hidden; text-overflow: ellipsis; }
+.seg-rows { padding: 8px 16px 14px; display: flex; flex-direction: column; gap: 10px; }
+.seg-row { border: 1px solid #1f2937; border-radius: 10px; padding: 10px 12px; background: #0d1220; }
+.seg-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.seg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.seg-dot.sunny { background: #fbbf24; }
+.seg-dot.storm, .seg-dot.rain { background: #60a5fa; box-shadow: 0 0 6px #60a5fa; }
+.seg-dot.snow { background: #bae6fd; }
+.seg-label { font-weight: 700; font-size: 0.82rem; }
+.seg-range { margin-left: auto; color: #6b7280; font-size: 0.68rem; }
+.seg-metrics { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.seg-m { text-align: center; }
+.seg-m b { display: block; font-size: 0.95rem; font-weight: 800; color: #e5e7eb; }
+.seg-m b.accent { color: #f472b6; }
+.seg-m b.danger { color: #f87171; }
+.seg-m b.bad { color: #f87171; }
+.seg-m span { font-size: 0.62rem; color: #6b7280; }
+
+/* 骑手绩效 */
+.perf-rows { padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+.perf-row { border: 1px solid #1f2937; border-radius: 10px; padding: 12px; background: #0d1220; }
+.perf-id { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.perf-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 8px currentColor; }
+.perf-namebox { flex: 1; min-width: 0; }
+.perf-name { font-weight: 700; font-size: 0.88rem; }
+.perf-role { color: #9ca3af; font-size: 0.68rem; }
+.perf-bars { display: flex; flex-direction: column; gap: 6px; }
+.perf-bar-row { display: flex; align-items: center; gap: 8px; }
+.perf-bar-label { width: 30px; flex-shrink: 0; font-size: 0.68rem; color: #6b7280; }
+.perf-bar { flex: 1; height: 7px; background: #1f2937; border-radius: 4px; overflow: hidden; }
+.perf-bar i { display: block; height: 100%; border-radius: 4px; }
+.perf-bar-val { width: 52px; text-align: right; font-size: 0.7rem; color: #cbd5e1; flex-shrink: 0; }
+.perf-stats { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.perf-stat { font-size: 0.66rem; color: #9ca3af; padding: 3px 8px; border: 1px solid #1f2937; border-radius: 999px; }
+.perf-stat.bad { color: #f87171; border-color: #7f1d1d; }
+
+/* 订单明细 */
+.order-panel { margin: 16px 28px 0; }
+.order-table-wrap { max-height: 360px; overflow: auto; }
+.order-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.order-table th, .order-table td { padding: 9px 12px; text-align: left; border-bottom: 1px solid #111827; white-space: nowrap; }
+.order-table th { position: sticky; top: 0; background: #0d1220; color: #6b7280; font-weight: 600; font-size: 0.7rem; cursor: pointer; user-select: none; border-bottom: 1px solid #1f2937; z-index: 1; }
+.order-table th:hover { color: #22d3ee; }
+.order-table tbody tr:hover { background: rgba(34,211,238,0.04); }
+.mono { font-family: 'JetBrains Mono', monospace; color: #9ca3af; }
+.late { color: #f87171; font-weight: 700; }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid; font-size: 0.68rem; }
+
+/* 城市日报 */
+.report-panel { margin: 16px 28px 0; }
+.report-body { padding: 20px 24px; }
+.report-headline { font-size: 1.25rem; font-weight: 800; color: #a78bfa; margin-bottom: 12px; }
+.report-text { color: #cbd5e1; line-height: 1.9; font-size: 0.9rem; margin-bottom: 18px; }
+.report-insights { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.insight { padding: 9px 12px; border: 1px solid #1f2937; border-left: 3px solid #22d3ee; border-radius: 8px; background: #0d1220; font-size: 0.82rem; color: #e5e7eb; }
+.report-stories { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.story-card { border: 1px solid #1f2937; border-radius: 10px; padding: 14px; background: #0d1220; }
+.story-name { font-weight: 700; font-size: 0.9rem; color: #a78bfa; margin-bottom: 8px; }
+.story-text { color: #9ca3af; font-size: 0.8rem; line-height: 1.7; margin: 0; }
+
+.footnote { padding: 24px 28px 0; color: #4b5563; font-size: 0.72rem; line-height: 1.8; text-align: center; }
+</style>
+</head>
+<body>
+<div class="root">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo-dot"></span>
+      <span class="brand-title">CITY UNIVERSE</span>
+      <span class="brand-sub">极端天气 × 城市物流 · 仿真引擎 demo</span>
+    </div>
+    <div class="weather-banner" id="weatherBanner" hidden>
+      <span class="weather-icon" id="weatherIcon">☀</span>
+      <span class="weather-text" id="weatherText">晴朗</span>
+      <span class="weather-speed" id="weatherSpeed" style="display:none"></span>
+    </div>
+  </header>
+
+  <nav class="stepper" id="stepper"></nav>
+
+  <!-- Step 0：开场 -->
+  <section id="step0" class="landing">
+    <div class="landing-card">
+      <div class="landing-kicker">A MINIATURE UNIVERSE</div>
+      <h1 class="landing-title">暴雨将至<br>一座城市的物流会怎样</h1>
+      <p class="landing-desc">
+        AI 一次性生成 5 位骑手的「灵魂」（身份、性格、动机，并蒸馏成行为参数），
+        规则引擎在城市网格里推进时间，极端天气冲击每一笔订单。
+      </p>
+      <div class="landing-points">
+        <span>🏙 抽象网格城市</span>
+        <span>👤 AI 生成 5 位骑手</span>
+        <span>🌧 暴雨剧本驱动</span>
+        <span>📈 延误 · 取消 · 收入</span>
+      </div>
+      <div class="weather-pick">
+        <div class="pick-label">先选一个天气剧本</div>
+        <div id="weatherPick"></div>
+      </div>
+      <button class="btn-primary" id="startBtn">▶ 开始生成</button>
+    </div>
+  </section>
+
+  <!-- Step 1：生成宇宙 -->
+  <section id="step1" hidden>
+    <div id="step1Content"></div>
+    <div class="step-actions">
+      <button class="btn-primary" id="toSimBtn">② 进入模拟 →</button>
+    </div>
+  </section>
+
+  <!-- Step 2：运行模拟 -->
+  <section id="step2" hidden>
+    <div class="board">
+      <section class="panel map-panel">
+        <div class="panel-head">
+          <span class="panel-title">城市地图 · <span id="cityName">—</span></span>
+          <span class="tick-label" id="tickLabel">TICK 0 / 0</span>
+        </div>
+        <div class="map-wrap" id="mapWrap">
+          <svg id="mapSvg" class="map-svg"></svg>
+          <div class="rain" id="rainOverlay" style="display:none"></div>
+          <div class="snow-overlay" id="snowOverlay" style="display:none"></div>
+        </div>
+        <div class="legend">
+          <span><i class="dot merchant"></i>商户</span>
+          <span><i class="dot customer"></i>顾客</span>
+          <span><i class="dot rider"></i>骑手</span>
+          <span><i class="dot blocked"></i>积水封路</span>
+        </div>
+      </section>
+
+      <section class="panel chart-panel">
+        <div class="panel-head">
+          <span class="panel-title">配送效率</span>
+          <span class="chart-legend">
+            <span><i class="swatch delivery"></i>平均送达</span>
+            <span><i class="swatch delay"></i>平均延误</span>
+          </span>
+        </div>
+        <svg id="chartSvg" class="chart-svg"></svg>
+        <div class="step-hint" id="simHint">点击 ▶ 开始运行模拟</div>
+      </section>
+
+      <section class="panel riders-panel">
+        <div class="panel-head">
+          <span class="panel-title">骑手 · 实时状态</span>
+          <span class="tick-label" id="onDutyLabel">在岗 0 / 0</span>
+        </div>
+        <div class="live-cards" id="liveCards"></div>
+      </section>
+    </div>
+
+    <div class="timeline">
+      <button class="play-btn" id="playBtn" title="播放 / 暂停">▶</button>
+      <input type="range" class="slider" id="tickSlider" min="0" max="0" value="0">
+      <button class="play-btn ghost" id="resetBtn" title="回到开头">⏮</button>
+    </div>
+
+    <section class="panel feed-panel">
+      <div class="panel-head">
+        <span class="panel-title">宇宙直播流</span>
+        <span class="tick-label" id="feedCount">0 条事件</span>
+      </div>
+      <div class="feed" id="feed"></div>
+    </section>
+
+    <div class="step-actions">
+      <button class="btn-primary" id="toResultBtn">③ 查看结果 →</button>
+    </div>
+  </section>
+
+  <!-- Step 3：结果洞察 -->
+  <section id="step3" hidden>
+    <div id="step3Content"></div>
+    <div class="step-actions">
+      <button class="btn-violet" id="toReportBtn">④ 生成城市日报 →</button>
+    </div>
+  </section>
+
+  <!-- Step 4：城市日报 -->
+  <section id="step4" hidden>
+    <div id="step4Content"></div>
+    <div class="step-actions">
+      <button class="btn-ghost" id="restartBtn">↻ 重新开始</button>
+    </div>
+  </section>
+
+  <div class="footnote">
+    本页面为纯静态演示：数据已预生成并固化于 data.js，操作流程全程离线，无需后端、无需 API Key。
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var CELL = 22;
+  var CHART_W = 560, CHART_H = 220;
+  var PAD = { top: 14, right: 14, bottom: 26, left: 34 };
+  var RIDER_COLORS = ['#22d3ee', '#a78bfa', '#f472b6', '#fbbf24', '#34d399', '#fb7185', '#60a5fa', '#f97316'];
+  var STATUS_LABEL = { pending: '待派单', accepted: '已接单', preparing: '备餐中', ready: '待取', picked_up: '配送中', delivered: '已送达', cancelled: '已取消' };
+  var STATUS_COLOR = { pending: '#9ca3af', accepted: '#60a5fa', preparing: '#fbbf24', ready: '#fbbf24', picked_up: '#a78bfa', delivered: '#34d399', cancelled: '#f87171' };
+  var WEATHER_ICON = { sunny: '☀', rain: '🌧', storm: '⛈', snow: '❄' };
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var STEP_NAMES = ['开始', '生成宇宙', '运行模拟', '结果洞察', '城市日报'];
+
+  var data = window.CITY_DEMO_DATA || { presets: [] };
+  var presets = data.presets || [];
+
+  var curIdx = 0;
+  var P = null, R = null, report = null;
+  var totalTicks = 0, gridW = 20, gridH = 20;
+  var currentTick = 0, playing = false, timer = null;
+  var feedRendered = 0;
+  var orderSortKey = 'created_tick', orderSortAsc = true;
+  var riderColorMap = {};
+  var riderEls = [];
+  var maxStep = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function svgEl(name, attrs) {
+    var el = document.createElementNS(SVG_NS, name);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  // ---------- 数据准备 ----------
+  function loadPreset(i) {
+    curIdx = i;
+    P = presets[i];
+    R = P.result;
+    report = P.report;
+    totalTicks = (R.config && R.config.total_ticks) || 96;
+    gridW = (R.city && R.city.grid_width) || 20;
+    gridH = (R.city && R.city.grid_height) || 20;
+    currentTick = 0;
+    feedRendered = 0;
+    orderSortKey = 'created_tick';
+    orderSortAsc = true;
+    stopPlay();
+    buildRiderColorMap();
+  }
+  function buildRiderColorMap() {
+    riderColorMap = {};
+    (R.agents.riders || []).forEach(function (r, i) { riderColorMap[r.rider_id] = RIDER_COLORS[i % RIDER_COLORS.length]; });
+  }
+  function tickSeries() { return R.tick_series || []; }
+  function frameAt(t) { return tickSeries()[t] || null; }
+  function weatherTypeAt(t) { var f = frameAt(t); return f ? f.weather_type : 'sunny'; }
+  function weatherLabel(type) {
+    if (type === 'sunny') return '晴朗';
+    var ev = (R.weather_scenario || []).filter(function (e) { return e.weather_type === type; })[0];
+    return (ev && ev.label) || type;
+  }
+  function blockedCellsAt(t) {
+    var cells = [];
+    (R.weather_scenario || []).forEach(function (e) {
+      if (e.start_tick <= t && t < e.end_tick) (e.blocked_cells || []).forEach(function (c) { cells.push(c); });
+    });
+    return cells;
+  }
+
+  // ---------- 步骤导航 ----------
+  function renderStepper() {
+    var html = '';
+    for (var i = 0; i < STEP_NAMES.length; i++) {
+      if (i > 0) html += '<span class="step-sep">›</span>';
+      var cls = 'step';
+      if (i === maxStep) cls += ' active';
+      else if (i < maxStep) cls += ' done';
+      html += '<button class="' + cls + '" data-step="' + i + '"><span class="num">' + (i === 0 ? '·' : i) + '</span>' + STEP_NAMES[i] + '</button>';
+    }
+    $('stepper').innerHTML = html;
+    var steps = $('stepper').querySelectorAll('.step');
+    for (var j = 0; j < steps.length; j++) {
+      (function (n) {
+        steps[j].onclick = function () { if (n <= maxStep) goToStep(n); };
+      })(j);
+    }
+  }
+  function goToStep(n) {
+    maxStep = Math.max(maxStep, n);
+    for (var i = 0; i <= 4; i++) $('step' + i).hidden = (i !== n);
+    renderStepper();
+    $('weatherBanner').hidden = (n !== 2);
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- Step 1：生成宇宙 ----------
+  function startGeneration() {
+    loadPreset(curIdx);
+    maxStep = 0;
+    goToStep(1);
+    $('step1Content').innerHTML =
+      '<div class="generating">' +
+        '<div class="gen-spinner"></div>' +
+        '<div class="gen-text">正在生成微型宇宙…</div>' +
+        '<div class="gen-sub">AI 正在为这座城市蒸馏 5 位骑手的「灵魂」</div>' +
+      '</div>';
+    setTimeout(renderUniverse, 1600);
+  }
+  function renderUniverse() {
+    var c = R.city || {};
+    var riders = R.agents.riders || [];
+    var statMap = {};
+    ((R.summary || {}).rider_stats || []).forEach(function (s) { statMap[s.rider_id] = s; });
+    var cards = riders.map(function (r) {
+      var st = statMap[r.rider_id] || {};
+      var color = riderColorMap[r.rider_id] || '#22d3ee';
+      return '<div class="soul-card">' +
+        '<div class="soul-top">' +
+          '<span class="soul-avatar" style="background:' + color + '"></span>' +
+          '<div class="soul-id"><div class="soul-name">' + r.name + ' <span class="soul-age">' + r.age + '岁</span></div>' +
+          '<div class="soul-role">' + r.role + '</div></div>' +
+        '</div>' +
+        '<div class="soul-personality">' + r.personality + '</div>' +
+        '<div class="soul-motto">「' + r.motto + '」</div>' +
+        '<div class="soul-motivation">' + r.motivation + '</div>' +
+        '<div class="soul-bars">' +
+          barRow('风险耐受', (st.risk_tolerance || 0) * 100, color) +
+          barRow('速度', ((st.speed_modifier || 1) / 1.3) * 100, color) +
+          barRow('收入敏感', (st.income_sensitivity || 0) * 100, color) +
+        '</div>' +
+      '</div>';
+    }).join('');
+    $('step1Content').innerHTML =
+      '<div class="city-card">' +
+        '<div class="city-head"><span class="city-name">' + (c.name || '—') + '</span><span class="city-today">' + (c.today || '') + '</span></div>' +
+        '<div class="city-atmo">' + (c.atmosphere || '') + '</div>' +
+      '</div>' +
+      '<div class="soul-wrap">' +
+        '<div class="soul-title">👤 生成的 5 位骑手「灵魂」<small>身份 · 性格 · 动机 → 蒸馏为行为参数</small></div>' +
+        '<div class="soul-grid">' + cards + '</div>' +
+      '</div>';
+  }
+  function barRow(label, width, color) {
+    return '<div class="bar-row"><span>' + label + '</span><div class="bar"><i style="width:' + Math.max(0, Math.min(100, width)) + '%;background:' + color + '"></i></div></div>';
+  }
+
+  // ---------- Step 2：运行模拟 ----------
+  function enterSimulation() {
+    goToStep(2);
+    $('cityName').textContent = (R.city && R.city.name) || '—';
+    $('tickSlider').max = Math.max(0, totalTicks - 1);
+    renderMapStatic();
+    renderChart();
+    renderLiveCards();
+    $('feed').innerHTML = '';
+    feedRendered = 0;
+    setTick(0);
+  }
+  function renderMapStatic() {
+    var svg = $('mapSvg');
+    svg.setAttribute('viewBox', '0 0 ' + (gridW * CELL) + ' ' + (gridH * CELL));
+    svg.innerHTML = '';
+    for (var y = 0; y < gridH; y++) {
+      for (var x = 0; x < gridW; x++) {
+        svg.appendChild(svgEl('rect', { x: x * CELL, y: y * CELL, width: CELL - 1, height: CELL - 1, fill: '#111827', stroke: '#1f2937', 'stroke-width': 0.5 }));
+      }
+    }
+    var bg = svgEl('g', {}); bg.setAttribute('id', 'blockedGroup'); svg.appendChild(bg);
+    (R.agents.merchants || []).forEach(function (m) {
+      var g = svgEl('g', {});
+      g.appendChild(svgEl('rect', { x: m.position[0] * CELL + 2, y: m.position[1] * CELL + 2, width: CELL - 4, height: CELL - 4, rx: 3, fill: '#f59e0b', opacity: 0.9 }));
+      var t = svgEl('text', { x: m.position[0] * CELL + CELL / 2, y: m.position[1] * CELL + CELL / 2 + 3, 'text-anchor': 'middle', 'font-size': 7, fill: '#1c1917', 'font-weight': 'bold' });
+      t.textContent = '商';
+      g.appendChild(t); svg.appendChild(g);
+    });
+    (R.agents.customers || []).forEach(function (c) {
+      svg.appendChild(svgEl('circle', { cx: c.position[0] * CELL + CELL / 2, cy: c.position[1] * CELL + CELL / 2, r: 2.6, fill: '#9ca3af' }));
+    });
+    riderEls = [];
+    (R.agents.riders || []).forEach(function (r) {
+      var color = riderColorMap[r.rider_id] || '#22d3ee';
+      var g = svgEl('g', { opacity: 1 });
+      var glow = svgEl('circle', { r: 9, fill: color, opacity: 0.25 }); glow.setAttribute('class', 'rider-glow');
+      var dot = svgEl('circle', { r: 5.5, fill: color }); dot.setAttribute('class', 'rider-dot');
+      var name = svgEl('text', { 'text-anchor': 'middle', 'font-size': 6.5, fill: color, 'font-weight': 600 }); name.setAttribute('class', 'rider-name-txt');
+      name.textContent = r.name;
+      g.appendChild(glow); g.appendChild(dot); g.appendChild(name); svg.appendChild(g);
+      riderEls.push({ g: g, glow: glow, dot: dot, name: name, rider_id: r.rider_id });
+    });
+  }
+  function xScale(t) { return PAD.left + (t / Math.max(1, totalTicks - 1)) * (CHART_W - PAD.left - PAD.right); }
+  function renderChart() {
+    var svg = $('chartSvg');
+    svg.setAttribute('viewBox', '0 0 ' + CHART_W + ' ' + CHART_H);
+    svg.innerHTML = '';
+    var ts = tickSeries();
+    var yMax = 20;
+    ts.forEach(function (d) { var v = Math.max(d.avg_delivery_ticks || 0, d.avg_delay_ticks || 0); if (v > yMax) yMax = v; });
+    function yScale(v) { return (CHART_H - PAD.bottom) - (v / yMax) * (CHART_H - PAD.top - PAD.bottom); }
+    (R.weather_scenario || []).filter(function (e) { return e.weather_type !== 'sunny'; }).forEach(function (e) {
+      svg.appendChild(svgEl('rect', { x: xScale(e.start_tick), y: PAD.top, width: Math.max(0, xScale(e.end_tick) - xScale(e.start_tick)), height: CHART_H - PAD.top - PAD.bottom, fill: '#1e3a5f', opacity: 0.5 }));
+    });
+    for (var i = 0; i <= 4; i++) {
+      var v = (yMax / 4) * i, gy = yScale(v);
+      svg.appendChild(svgEl('line', { x1: PAD.left, x2: CHART_W - PAD.right, y1: gy, y2: gy, stroke: '#1f2937', 'stroke-width': 0.5 }));
+      var tt = svgEl('text', { x: PAD.left - 4, y: gy + 3, 'text-anchor': 'end', 'font-size': 8, fill: '#6b7280' }); tt.textContent = String(Math.round(v));
+      svg.appendChild(tt);
+    }
+    function pts(key) { return ts.filter(function (d) { return d[key] > 0; }).map(function (d) { return [xScale(d.tick), yScale(d[key])]; }); }
+    function pathOf(p) { return p.map(function (q, i) { return (i === 0 ? 'M' : 'L') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join(' '); }
+    function areaOf(p) {
+      if (!p.length) return '';
+      var base = yScale(0), d = 'M' + p[0][0].toFixed(1) + ' ' + base.toFixed(1);
+      p.forEach(function (q) { d += 'L' + q[0].toFixed(1) + ' ' + q[1].toFixed(1); });
+      d += 'L' + p[p.length - 1][0].toFixed(1) + ' ' + base.toFixed(1) + 'Z'; return d;
+    }
+    var dp = pts('avg_delivery_ticks'), lp = pts('avg_delay_ticks');
+    if (lp.length) svg.appendChild(svgEl('path', { d: areaOf(lp), fill: 'rgba(244,114,182,0.12)' }));
+    if (dp.length) svg.appendChild(svgEl('path', { d: pathOf(dp), fill: 'none', stroke: '#22d3ee', 'stroke-width': 1.6 }));
+    if (lp.length) svg.appendChild(svgEl('path', { d: pathOf(lp), fill: 'none', stroke: '#f472b6', 'stroke-width': 1.6 }));
+    var cur = svgEl('line', { y1: PAD.top, y2: CHART_H - PAD.bottom, stroke: '#fbbf24', 'stroke-width': 1, 'stroke-dasharray': '3 2' });
+    cur.setAttribute('id', 'chartCursor'); svg.appendChild(cur);
+  }
+  function renderLiveCards() {
+    var html = '';
+    (R.agents.riders || []).forEach(function (r) {
+      var color = riderColorMap[r.rider_id] || '#22d3ee';
+      html += '<div class="live-card" data-rider-id="' + r.rider_id + '">' +
+        '<div class="live-top">' +
+          '<span class="live-avatar" style="background:' + color + '"></span>' +
+          '<div class="live-id"><div class="live-name">' + r.name + '</div><div class="live-role">' + r.role + '</div></div>' +
+          '<span class="live-duty">在岗</span>' +
+        '</div>' +
+        '<div class="live-motto">「' + r.motto + '」</div>' +
+      '</div>';
+    });
+    $('liveCards').innerHTML = html;
+  }
+  function updateLiveCards() {
+    var f = frameAt(currentTick);
+    var byId = {};
+    ((f && f.riders) || []).forEach(function (r) { byId[r.rider_id] = r; });
+    var cards = $('liveCards').children, onDuty = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var rid = cards[i].getAttribute('data-rider-id');
+      var duty = byId[rid] ? byId[rid].on_duty : true;
+      if (duty) onDuty++;
+      cards[i].classList.toggle('off', !duty);
+      cards[i].querySelector('.live-duty').textContent = duty ? '在岗' : '收工';
+    }
+    $('onDutyLabel').textContent = '在岗 ' + onDuty + ' / ' + cards.length;
+  }
+
+  // ---------- 动态更新 ----------
+  function updateMap() {
+    var bg = $('blockedGroup'); bg.innerHTML = '';
+    var seen = {};
+    blockedCellsAt(currentTick).forEach(function (c) {
+      var key = c[0] + ',' + c[1]; if (seen[key]) return; seen[key] = true;
+      bg.appendChild(svgEl('rect', { x: c[0] * CELL, y: c[1] * CELL, width: CELL, height: CELL, fill: '#3b1d2b', stroke: '#7f1d1d', 'stroke-width': 0.5 }));
+      bg.appendChild(svgEl('line', { x1: c[0] * CELL, y1: c[1] * CELL, x2: c[0] * CELL + CELL, y2: c[1] * CELL + CELL, stroke: '#ef4444', 'stroke-width': 1.5, opacity: 0.7 }));
+    });
+    var f = frameAt(currentTick), byId = {};
+    ((f && f.riders) || []).forEach(function (r) { byId[r.rider_id] = r; });
+    riderEls.forEach(function (el) {
+      var r = byId[el.rider_id]; if (!r) return;
+      var cx = r.x * CELL + CELL / 2, cy = r.y * CELL + CELL / 2;
+      el.glow.setAttribute('cx', cx); el.glow.setAttribute('cy', cy);
+      el.dot.setAttribute('cx', cx); el.dot.setAttribute('cy', cy);
+      el.name.setAttribute('x', cx); el.name.setAttribute('y', r.y * CELL - 4);
+      el.g.setAttribute('opacity', r.on_duty ? 1 : 0.25);
+    });
+  }
+  function updateBanner() {
+    var type = weatherTypeAt(currentTick);
+    var b = $('weatherBanner');
+    b.className = 'weather-banner ' + type;
+    $('weatherIcon').textContent = WEATHER_ICON[type] || '☀';
+    $('weatherText').textContent = weatherLabel(type);
+    var f = frameAt(currentTick), sp = f ? f.speed_factor : 1;
+    if (type !== 'sunny' && sp < 1) { $('weatherSpeed').textContent = '配送速度 ×' + sp; $('weatherSpeed').style.display = ''; }
+    else $('weatherSpeed').style.display = 'none';
+    var storm = type === 'storm' || type === 'rain';
+    $('rainOverlay').style.display = storm ? '' : 'none';
+    $('snowOverlay').style.display = type === 'snow' ? '' : 'none';
+    $('mapWrap').className = 'map-wrap' + (storm ? ' storm' : '') + (type === 'snow' ? ' snow' : '');
+  }
+  function appendFeedItem(e) {
+    var div = document.createElement('div');
+    div.className = 'feed-item ' + (e.action || '');
+    var t = document.createElement('span'); t.className = 'feed-tick'; t.textContent = String(e.tick).padStart(2, '0');
+    var d = document.createElement('span'); d.className = 'feed-detail'; d.textContent = e.detail;
+    div.appendChild(t); div.appendChild(d);
+    $('feed').appendChild(div);
+  }
+  function updateFeed() {
+    var events = R.events || [], count = 0;
+    for (var i = 0; i < events.length; i++) { if (events[i].tick <= currentTick) count++; else break; }
+    var feed = $('feed');
+    if (count < feedRendered) { feed.innerHTML = ''; feedRendered = 0; }
+    if (count > 0 && feed.querySelector('.feed-empty')) { feed.innerHTML = ''; feedRendered = 0; }
+    while (feedRendered < events.length && events[feedRendered].tick <= currentTick) { appendFeedItem(events[feedRendered]); feedRendered++; }
+    if (count === 0) { feed.innerHTML = '<div class="feed-empty">— 世界尚未开始 —</div>'; feedRendered = 0; }
+    $('feedCount').textContent = count + ' 条事件';
+    feed.scrollTop = feed.scrollHeight;
+  }
+  function setTick(t) {
+    if (t < 0) t = 0; if (t > totalTicks - 1) t = totalTicks - 1;
+    currentTick = t;
+    $('tickSlider').value = t;
+    $('tickLabel').textContent = 'TICK ' + t + ' / ' + (totalTicks - 1);
+    updateBanner();
+    updateMap();
+    var c = $('chartCursor'); if (c) { c.setAttribute('x1', xScale(t)); c.setAttribute('x2', xScale(t)); }
+    updateLiveCards();
+    updateFeed();
+    $('simHint').textContent = t >= totalTicks - 1 ? '运行完成 ✓ 点击下方「查看结果」' : (t === 0 ? '点击 ▶ 开始运行模拟' : '运行中…');
+  }
+  function startPlay() {
+    if (playing) return;
+    playing = true; $('playBtn').textContent = '⏸';
+    timer = setInterval(function () {
+      if (currentTick >= totalTicks - 1) { stopPlay(); return; }
+      setTick(currentTick + 1);
+    }, 120);
+  }
+  function stopPlay() { playing = false; if (timer) clearInterval(timer); timer = null; $('playBtn').textContent = '▶'; }
+  function togglePlay() { playing ? stopPlay() : startPlay(); }
+
+  // ---------- Step 3：结果洞察 ----------
+  function viewResults() {
+    goToStep(3);
+    var s = R.summary || {};
+    var statHtml =
+      '<div class="stat"><div class="stat-val">' + s.avg_delivery_ticks + '</div><div class="stat-label">平均送达 (tick)</div></div>' +
+      '<div class="stat"><div class="stat-val accent">' + s.avg_delay_ticks + '</div><div class="stat-label">平均延误 (tick)</div></div>' +
+      '<div class="stat"><div class="stat-val">' + Math.round((s.cancel_rate || 0) * 100) + '%</div><div class="stat-label">取消率</div></div>' +
+      '<div class="stat"><div class="stat-val">' + Math.round((s.on_time_rate || 0) * 100) + '%</div><div class="stat-label">准点率</div></div>';
+    $('step3Content').innerHTML =
+      '<div class="stat-strip">' + statHtml + '</div>' +
+      '<div class="data-grid">' +
+        '<section class="panel seg-panel"><div class="panel-head"><span class="panel-title">晴雨分段指标</span><span class="tick-label">按下单时刻归段</span></div>' + segmentsHtml() + '</section>' +
+        '<section class="panel perf-panel"><div class="panel-head"><span class="panel-title">骑手绩效对比</span><span class="tick-label">按收入排序</span></div><div class="perf-rows">' + perfHtml() + '</div></section>' +
+      '</div>' +
+      '<section class="panel order-panel"><div class="panel-head"><span class="panel-title">订单明细</span><span class="tick-label" id="orderCount"></span></div><div class="order-table-wrap"><table class="order-table" id="orderTable"></table></div></section>';
+    drawOrderTable();
+  }
+  function segmentsHtml() {
+    var segs = R.segments || [];
+    var bands = segs.map(function (s) {
+      return '<div class="seg-band ' + s.weather_type + '" style="flex-grow:' + (s.end_tick - s.start_tick) + '"><span class="seg-icon">' + (WEATHER_ICON[s.weather_type] || '☀') + '</span><span class="seg-name">' + s.label + '</span></div>';
+    }).join('');
+    var rows = segs.map(function (s) {
+      return '<div class="seg-row"><div class="seg-row-head"><span class="seg-dot ' + s.weather_type + '"></span><span class="seg-label">' + s.label + '</span><span class="seg-range">T' + s.start_tick + '–' + s.end_tick + '</span></div>' +
+        '<div class="seg-metrics">' +
+          '<div class="seg-m"><b>' + s.orders + '</b><span>订单</span></div>' +
+          '<div class="seg-m"><b>' + s.delivered + '</b><span>送达</span></div>' +
+          '<div class="seg-m"><b class="danger">' + s.cancelled + '</b><span>取消</span></div>' +
+          '<div class="seg-m"><b class="' + (s.on_time_rate < 0.5 ? 'bad' : '') + '">' + Math.round(s.on_time_rate * 100) + '%</b><span>准点</span></div>' +
+          '<div class="seg-m"><b>' + s.avg_delivery_ticks + '</b><span>均用时</span></div>' +
+          '<div class="seg-m"><b class="accent">' + s.avg_delay_ticks + '</b><span>均延误</span></div>' +
+        '</div></div>';
+    }).join('');
+    return '<div class="seg-bands">' + bands + '</div><div class="seg-rows">' + rows + '</div>';
+  }
+  function perfHtml() {
+    var rows = ((R.summary || {}).rider_stats || []).map(function (x) { x.color = riderColorMap[x.rider_id] || '#22d3ee'; return x; });
+    rows.sort(function (a, b) { return (b.income || 0) - (a.income || 0); });
+    var maxI = 1, maxD = 1;
+    rows.forEach(function (r) { if (r.income > maxI) maxI = r.income; if (r.delivered_count > maxD) maxD = r.delivered_count; });
+    function pct(v, m) { return Math.max(0, Math.min(100, (v / m) * 100)) + '%'; }
+    return rows.map(function (r) {
+      return '<div class="perf-row"><div class="perf-id"><span class="perf-avatar" style="background:' + r.color + '"></span><div class="perf-namebox"><div class="perf-name">' + r.name + '</div><div class="perf-role">' + r.role + '</div></div></div>' +
+        '<div class="perf-bars">' +
+          '<div class="perf-bar-row"><span class="perf-bar-label">收入</span><div class="perf-bar"><i style="width:' + pct(r.income, maxI) + ';background:' + r.color + '"></i></div><span class="perf-bar-val">¥' + r.income + '</span></div>' +
+          '<div class="perf-bar-row"><span class="perf-bar-label">送单</span><div class="perf-bar"><i style="width:' + pct(r.delivered_count, maxD) + ';background:' + r.color + '"></i></div><span class="perf-bar-val">' + r.delivered_count + '单</span></div>' +
+        '</div>' +
+        '<div class="perf-stats">' +
+          '<span class="perf-stat ' + (r.on_time_rate < 0.5 ? 'bad' : '') + '">准点 ' + Math.round(r.on_time_rate * 100) + '%</span>' +
+          '<span class="perf-stat">延误 ' + r.avg_delay + '</span>' +
+          '<span class="perf-stat">里程 ' + r.total_distance + '</span>' +
+        '</div></div>';
+    }).join('');
+  }
+  function sortedOrders() {
+    var arr = (R.orders || []).slice(), k = orderSortKey, asc = orderSortAsc;
+    arr.sort(function (a, b) {
+      var va = a[k], vb = b[k];
+      if (va == null) va = asc ? Infinity : -Infinity;
+      if (vb == null) vb = asc ? Infinity : -Infinity;
+      if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return asc ? va - vb : vb - va;
+    });
+    return arr;
+  }
+  function drawOrderTable() {
+    $('orderCount').textContent = (R.orders || []).length + ' 笔 · 点击表头排序';
+    var cols = [['order_id','订单'],['customer_name','顾客'],['merchant_name','商户'],['rider_name','骑手'],['status','状态'],['created_tick','下单'],['delivery_ticks','用时'],['delay_ticks','延误']];
+    var thead = '<tr>' + cols.map(function (c) { return '<th data-key="' + c[0] + '">' + c[1] + '</th>'; }).join('') + '</tr>';
+    var tbody = sortedOrders().map(function (o) {
+      var delayTxt = o.delay_ticks == null ? '—' : (o.delay_ticks > 0 ? '+' + o.delay_ticks : '0');
+      return '<tr>' +
+        '<td class="mono">' + o.order_id + '</td>' +
+        '<td>' + o.customer_name + '</td><td>' + o.merchant_name + '</td>' +
+        '<td style="color:' + (riderColorMap[o.rider_id] || '#9ca3af') + '">' + (o.rider_name || '—') + '</td>' +
+        '<td><span class="status-badge" style="color:' + (STATUS_COLOR[o.status] || '#9ca3af') + ';border-color:' + (STATUS_COLOR[o.status] || '#9ca3af') + '">' + (STATUS_LABEL[o.status] || o.status) + '</span></td>' +
+        '<td class="mono">T' + o.created_tick + '</td>' +
+        '<td class="mono">' + (o.delivery_ticks == null ? '—' : o.delivery_ticks) + '</td>' +
+        '<td class="mono ' + (o.delay_ticks > 0 ? 'late' : '') + '">' + delayTxt + '</td>' +
+      '</tr>';
+    }).join('');
+    $('orderTable').innerHTML = '<thead>' + thead + '</thead><tbody>' + tbody + '</tbody>';
+    var ths = $('orderTable').querySelectorAll('th');
+    for (var i = 0; i < ths.length; i++) ths[i].onclick = function () { sortBy(this.getAttribute('data-key')); };
+  }
+  function sortBy(k) {
+    if (orderSortKey === k) orderSortAsc = !orderSortAsc; else { orderSortKey = k; orderSortAsc = true; }
+    drawOrderTable();
+  }
+
+  // ---------- Step 4：城市日报 ----------
+  function generateReport() {
+    goToStep(4);
+    $('step4Content').innerHTML =
+      '<div class="generating"><div class="gen-spinner"></div><div class="gen-text">AI 主编正在撰写《城市日报》…</div><div class="gen-sub">梳理这场模拟的洞察，并为每位骑手写一段第一人称复盘</div></div>';
+    setTimeout(renderReport, 900);
+  }
+  function renderReport() {
+    if (!report) { $('step4Content').innerHTML = '<div class="feed-empty">暂无日报</div>'; return; }
+    var insights = (report.insights || []).map(function (s) { return '<div class="insight">💡 ' + s + '</div>'; }).join('');
+    var stories = (report.rider_stories || []).map(function (s) {
+      return '<div class="story-card"><div class="story-name">' + s.name + '</div><p class="story-text">' + s.story + '</p></div>';
+    }).join('');
+    $('step4Content').innerHTML =
+      '<section class="panel report-panel"><div class="panel-head"><span class="panel-title">城市日报 · AI 复盘</span><span class="tick-label">' + (report.fallback ? '模板复盘' : 'LLM 撰写') + '</span></div><div class="report-body">' +
+        '<div class="report-headline">' + report.headline + '</div>' +
+        '<p class="report-text">' + report.report + '</p>' +
+        (insights ? '<div class="report-insights">' + insights + '</div>' : '') +
+        (stories ? '<div class="report-stories">' + stories + '</div>' : '') +
+      '</div></section>';
+  }
+
+  // ---------- 初始化 ----------
+  function initWeatherPick() {
+    var html = '';
+    presets.forEach(function (p, i) {
+      html += '<button class="preset-tab' + (i === 0 ? ' active' : '') + '" data-idx="' + i + '">' + p.label + '</button>';
+    });
+    $('weatherPick').innerHTML = html;
+    var tabs = $('weatherPick').querySelectorAll('.preset-tab');
+    for (var j = 0; j < tabs.length; j++) {
+      tabs[j].onclick = function () {
+        curIdx = parseInt(this.getAttribute('data-idx'), 10);
+        var all = $('weatherPick').querySelectorAll('.preset-tab');
+        for (var k = 0; k < all.length; k++) all[k].classList.remove('active');
+        this.classList.add('active');
+      };
+    }
+  }
+
+  // 事件绑定
+  $('startBtn').onclick = startGeneration;
+  $('toSimBtn').onclick = enterSimulation;
+  $('toResultBtn').onclick = viewResults;
+  $('toReportBtn').onclick = generateReport;
+  $('restartBtn').onclick = function () { maxStep = 0; goToStep(0); };
+  $('playBtn').onclick = togglePlay;
+  $('resetBtn').onclick = function () { stopPlay(); setTick(0); };
+  $('tickSlider').oninput = function () { stopPlay(); setTick(parseInt(this.value, 10)); };
+
+  if (!presets.length) {
+    document.body.innerHTML = '<div style="padding:60px;text-align:center;color:#9ca3af">未找到模拟数据（data.js 缺失或为空）。</div>';
+    return;
+  }
+  initWeatherPick();
+  renderStepper();
+  goToStep(0);
+})();
+</script>
+</body>
+</html>
